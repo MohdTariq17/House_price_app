@@ -1,55 +1,68 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.datasets import fetch_california_housing
-from sklearn.model_selection import train_test_split
+import joblib
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
-# Load dataset
-housing = fetch_california_housing()
-X = pd.DataFrame(housing.data, columns=housing.feature_names)
-y = housing.target
+# Title
+st.title("House Price Prediction App")
+st.write("Predict California housing prices using input features.")
 
-# Split data
+# Load Dataset
+data = pd.read_csv("https://raw.githubusercontent.com/ageron/handson-ml/master/datasets/housing/housing.csv")
+data.dropna(inplace=True)
+
+# Feature Engineering
+data['rooms_per_household'] = data['total_rooms'] / data['households']
+data['bedrooms_per_room'] = data['total_bedrooms'] / data['total_rooms']
+data['population_per_household'] = data['population'] / data['households']
+
+features = [
+    "median_income",
+    "housing_median_age",
+    "total_rooms",
+    "total_bedrooms",
+    "population",
+    "households",
+    "latitude",
+    "longitude",
+    "rooms_per_household",
+    "bedrooms_per_room",
+    "population_per_household"
+]
+
+X = data[features]
+y = data["median_house_value"]
+
+# Train/test split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Train model
-model = RandomForestRegressor()
+model = RandomForestRegressor(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
-# Streamlit App
-st.title("California House Price Prediction")
-
-st.markdown("""
-This app predicts the **median house price** in California (in $100,000s) using features from the [California Housing dataset](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.fetch_california_housing.html).
-""")
-
-# Create sliders dynamically
+# Sidebar Inputs
 st.sidebar.header("Input Features")
+
 input_data = {}
-for feature in X.columns:
-    min_val = float(X[feature].min())
-    max_val = float(X[feature].max())
-    mean_val = float(X[feature].mean())
-    input_data[feature] = st.sidebar.slider(
-        feature, min_val, max_val, mean_val
-    )
+for col in features:
+    min_val = float(X[col].min())
+    max_val = float(X[col].max())
+    mean_val = float(X[col].mean())
+    input_data[col] = st.sidebar.slider(col.replace("_", " ").title(), min_val, max_val, mean_val)
 
-# Convert input to DataFrame
+# Prediction
 input_df = pd.DataFrame([input_data])
-
-# Make prediction
 prediction = model.predict(input_df)[0]
+st.subheader("Predicted House Price:")
+st.write(f"${prediction:,.2f}")
 
-# Show results
-st.subheader("Predicted House Price")
-st.write(f"💰 **${prediction * 100000:,.2f}**")
-
-# Optional: Show model performance on test set
-if st.checkbox("Show model performance"):
-    y_pred = model.predict(X_test)
-    st.write("**R² Score:**", round(r2_score(y_test, y_pred), 2))
-    st.write("**RMSE:**", round(np.sqrt(mean_squared_error(y_test, y_pred)), 2))
-    st.write("**MAE:**", round(mean_absolute_error(y_test, y_pred), 2))
+# Evaluation
+st.subheader("Model Evaluation on Test Set")
+y_pred = model.predict(X_test)
+st.write(f"R2 Score: {r2_score(y_test, y_pred):.2f}")
+st.write(f"MAE: {mean_absolute_error(y_test, y_pred):.2f}")
+st.write(f"RMSE: {np.sqrt(mean_squared_error(y_test, y_pred)):.2f}")
 
